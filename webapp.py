@@ -95,6 +95,8 @@ last_day = list(data['day'].unique())[-1]
 
 app = dash.Dash(__name__)
 
+server = app.server
+
 
 #Define app layout
 
@@ -239,4 +241,4 @@ def update_figure(dropdown_select, selectedData):
 #Run the app
 
 if __name__ == '__main__':
-    app.run_server(debug=True, dev_tools_hot_reload=True)
+    app.run_server(debug=True)
