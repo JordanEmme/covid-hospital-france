@@ -16,6 +16,7 @@ distro==1.4.0
 Flask==1.1.2
 Flask-Compress==1.8.0
 future==0.18.2
+gunicorn==20.0.4
 html5lib==1.0.1
 idna==2.8
 ipaddr==2.2.0
