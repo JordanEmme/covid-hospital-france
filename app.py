@@ -134,7 +134,8 @@ app.layout = html.Div(children = [
 				        min_date_allowed=first_day,
 				        max_date_allowed=last_day,
 				        initial_visible_month=last_day,
-				        date=last_day
+				        date=last_day,
+                        display_format = 'DD-MM-YYYY'
 				    ),
 
 				    html.P(),
