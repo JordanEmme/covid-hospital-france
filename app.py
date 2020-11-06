@@ -15,20 +15,17 @@ import json
 from urllib.request import urlopen
 
 #Get JSON for France
-
 with open('geoJson/map.json') as file:
     france = json.load(file)
 
-#get France hospital Data
-
+#Get French hospital data
 with urlopen('https://www.data.gouv.fr/fr/datasets/r/63352e38-d353-4b54-bfd1-f1b3ee1cabd7') as file:
     covid = pd.read_csv(file, sep= ';')
     
     
-#Engineer the data
+#Cleaning and engineering the data
+covid.dropna(inplace= True) #Dropping Nan
 
-code_dict = {elm['properties']['code']: elm['properties']['nom'] for elm in france['features']}
-    
 def format_date(date_str):
     if '-' in date_str:
         return datetime.strptime(date_str, '%Y-%m-%d').date()
@@ -36,70 +33,40 @@ def format_date(date_str):
         return datetime.strptime(date_str, '%d/%m/%Y').date()
 
 
-def clean_date(data):
-    data['jour'] = data['jour'].apply(format_date)
-    return data
+covid['jour'] = covid['jour'].apply(format_date) #Solving date formatting issues
+covid = covid[covid['dep'].apply(lambda x : len(x) == 2)] #Removing DOM-TOM (length of dep code is not 2)
 
+di = {0: 'all', 1: 'male', 2: 'female'}
+covid['sexe'].replace(di, inplace= True)
 
-def remove_dom_tom(data):
-    return data[data['dep'].apply(lambda x : len(x) == 2)]
+france_total = covid.groupby(['jour', 'sexe']).sum()
+france_total.reset_index(inplace=  True)
 
+code_dict = {elm['properties']['code']: elm['properties']['nom'] for elm in france['features']}
+covid['dep_name'] = covid['dep'].apply(lambda x : code_dict[x]) #Adding departments names
 
-def get_days(data):
-    return list(data['jour'].unique())
-
-
-def add_dep_name(data):
-    data['dep_name'] = data['dep'].apply(lambda x : code_dict[x])
-    return data
-
-
-def convert_sexe(data):
-    di = {0: 'all', 1: 'male', 2: 'female'}
-    data['sexe'].replace(di, inplace= True)
-    return data
-
-
-def get_france_total(data):
-    france_total = data.groupby(['jour', 'sexe']).sum()
-    france_total.reset_index(inplace=  True)
-    return france_total
-
-
-def make_data(covid):
-    data = covid.copy()
-    data.dropna(inplace= True)
-    data = clean_date(data)
-    data = remove_dom_tom(data)
-    data = add_dep_name(data)
-    france_total = get_france_total(data)
-    data = convert_sexe(data)
-    france_total = convert_sexe(france_total)
-    return data, france_total
-
-data, france_total = make_data(covid)
-
-
-#Change column names
-data.columns = ['dep', 'sex', 'day', 'hospitalised', 'intensive care', 'discharged', 'deaths', 'dep_name']
+#Change column names for UI
+covid.columns = ['dep', 'sex', 'day', 'hospitalised', 'intensive care', 'discharged', 'deaths', 'dep_name']
 france_total.columns = ['day', 'sex', 'hospitalised', 'intensive care', 'discharged', 'deaths']
 
 
-pop = data['sex'] == 'all'
+# Define usual masks
+pop = covid['sex'] == 'all'
 
-first_day= list(data['day'].unique())[0]
-last_day = list(data['day'].unique())[-1]
+days = list(covid['day'].unique())
+
+first_day = days[0]
+last_day = days[-1]
 
 
 #Initialize the app
-
 app = dash.Dash(__name__)
-
 server = app.server
 
+#app options
+app.title= "Covid France"
 
 #Define app layout
-
 app.layout = html.Div(children = [
 
 	html.Div(className='row',
@@ -122,6 +89,8 @@ app.layout = html.Div(children = [
 				            {'label': 'Number of people in intensive care', 'value': 'intensive care'},
 				            {'label': 'Cumulated number of recoveries', 'value': 'discharged'}
 				        ],
+                        searchable= False,
+                        clearable=False,
 				        value='deaths'
 				    ),
 
@@ -135,7 +104,8 @@ app.layout = html.Div(children = [
 				        max_date_allowed=last_day,
 				        initial_visible_month=last_day,
 				        date=last_day,
-                        display_format = 'DD-MM-YYYY'
+                        display_format = 'DD-MM-YYYY',
+                        clearable= False
 				    ),
 
 				    html.P(),
@@ -182,7 +152,7 @@ app.layout = html.Div(children = [
 def update_map(dropdown_select, date_picker):
        
     france_map = px.choropleth(
-    	data_frame = data[pop & (data['day'] ==  datetime.strptime(date_picker, '%Y-%m-%d').date())],
+    	data_frame = covid[pop & (covid['day'] ==  datetime.strptime(date_picker, '%Y-%m-%d').date())],
         geojson= france,
         color=dropdown_select,
         template = "plotly_dark",
@@ -226,7 +196,7 @@ def update_figure(dropdown_select, selectedData):
         
         dep = selectedData["points"][0]['location']
         figure = px.bar(
-            data[(data['dep'] == dep) & (data['sex'] != 'all')],
+            covid[(covid['dep'] == dep) & (covid['sex'] != 'all')],
             x= 'day',
             y=dropdown_select,
             template = "plotly_dark",
@@ -240,6 +210,5 @@ def update_figure(dropdown_select, selectedData):
 
 
 #Run the app
-
 if __name__ == '__main__':
     app.run_server(debug=True)
