@@ -59,6 +59,32 @@ first_day = days[0]
 last_day = days[-1]
 
 
+#Data for last day summary
+summary_data = france_total[(france_total['day'] == last_day) & (france_total['sex'] == 'all')]
+
+#Last daily deaths
+daily_deaths = (france_total[(france_total['day'] == last_day) & (france_total['sex'] == 'all')]['deaths'].iloc[-1] -
+    france_total[(france_total['day'] == days[-2]) & (france_total['sex'] == 'all')]['deaths'].iloc[-1])
+
+
+# Generate total summary table
+def generate_table():
+    return html.Table(
+        [html.Tr([html.Th('Data on the {}'.format(last_day))] + [html.Td('')])] +
+        # Daily Deaths
+        [html.Tr([html.Td('Daily deaths')]+[html.Td(daily_deaths)])] +
+        # Cumulative Deaths
+        [html.Tr([html.Td('Cumulative Deaths')]+[html.Td(summary_data['deaths'])])] +
+        # Cumulative Recoveries
+        [html.Tr([html.Td('Cumulative Recoveries')]+[html.Td(summary_data['discharged'])])] +
+        # Number Hospitalised
+        [html.Tr([html.Td('Hospitalised')]+[html.Td(summary_data['hospitalised'])])] +
+        # Number intensive
+        [html.Tr([html.Td('Intensive care')]+[html.Td(summary_data['intensive care'])])]
+    )
+
+
+
 #Initialize the app
 app = dash.Dash(__name__)
 server = app.server
@@ -77,26 +103,24 @@ app.layout = html.Div(children = [
 
 				children= [
 
-					html.H1(children='Hospital data on COVID-19 in France'),
+					html.H1(children='''Hospital data on COVID-19 in France'''),
 
-					html.P('''Please select what to visualise from the dropdown menu below.'''),
+					html.H6('Please select what to visualise:'),
 
-					dcc.Dropdown(
-				        id='dropdown_select',
+					dcc.RadioItems(
+				        id='radio_select',
 				        options=[
-				            {'label': 'Cumulated number of deaths', 'value': 'deaths'},
+				            {'label': 'Cumulative number of deaths', 'value': 'deaths'},
+                            {'label': 'Cumulative number of recoveries', 'value': 'discharged'},
 				            {'label': 'Number of hospitalised people', 'value': 'hospitalised'},
-				            {'label': 'Number of people in intensive care', 'value': 'intensive care'},
-				            {'label': 'Cumulated number of recoveries', 'value': 'discharged'}
+				            {'label': 'Number of people in intensive care', 'value': 'intensive care'}				            
 				        ],
-                        searchable= False,
-                        clearable=False,
 				        value='deaths'
 				    ),
 
-					html.P(),
+					html.Br(),
 
-				    html.P('''Please select a date to update the map.'''),
+				    html.H6('''Please select a date to update the map.'''),
 
 				    dcc.DatePickerSingle(
 				        id='date_picker',
@@ -104,15 +128,30 @@ app.layout = html.Div(children = [
 				        max_date_allowed=last_day,
 				        initial_visible_month=last_day,
 				        date=last_day,
-                        display_format = 'DD-MM-YYYY',
+                        display_format = 'DD/MM/YYYY',
                         clearable= False
 				    ),
 
-				    html.P(),
+                    html.Br(),
+                    html.Br(),
 
-				    html.P('All data can be found at the following address:'),
 
-				    dcc.Link(href= 'https://www.data.gouv.fr/fr/datasets/donnees-hospitalieres-relatives-a-lepidemie-de-covid-19/')
+                    html.H6('''Nationwide daily summary'''),
+
+                    generate_table(),
+
+				    html.Br(),
+                    html.Br(),
+                    html.Br(),
+
+                    html.Footer(html.P(
+                        [
+                            'The official data can be downloaded ',
+                            html.A('here', href='https://www.data.gouv.fr/fr/datasets/r/63352e38-d353-4b54-bfd1-f1b3ee1cabd7', download= 'test')
+                        ]
+                    ))
+
+				    
 
 				]),
 
@@ -147,14 +186,14 @@ app.layout = html.Div(children = [
 
 @app.callback(
     Output('france_map', 'figure'),
-    [Input('dropdown_select', 'value'),
+    [Input('radio_select', 'value'),
     Input('date_picker', 'date')])
-def update_map(dropdown_select, date_picker):
+def update_map(radio_select, date_picker):
        
     france_map = px.choropleth(
     	data_frame = covid[pop & (covid['day'] ==  datetime.strptime(date_picker, '%Y-%m-%d').date())],
         geojson= france,
-        color=dropdown_select,
+        color=radio_select,
         template = "plotly_dark",
         locations= 'dep',
         hover_name= 'dep_name',
@@ -178,18 +217,21 @@ def update_map(dropdown_select, date_picker):
 
 @app.callback(
     Output('figure', 'figure'),
-    [Input('dropdown_select', 'value'),
+    [Input('radio_select', 'value'),
     Input('france_map', 'selectedData')])
-def update_figure(dropdown_select, selectedData):
+def update_figure(radio_select, selectedData):
    
-    figure =px.bar(
+    figure = px.bar(
         france_total[france_total['sex'] != 'all'],
         x= 'day',
-        y=dropdown_select,
+        y=radio_select,
         template = "plotly_dark",
+        category_orders={'sex':['female','male']},
         color = 'sex',
         color_discrete_map={'male': 'blue', 'female': 'red'}
     )
+    figure.update_layout(legend_traceorder="reversed")
+
 
     
     if selectedData:        
@@ -198,12 +240,14 @@ def update_figure(dropdown_select, selectedData):
         figure = px.bar(
             covid[(covid['dep'] == dep) & (covid['sex'] != 'all')],
             x= 'day',
-            y=dropdown_select,
+            y=radio_select,
             template = "plotly_dark",
+            category_orders={'sex':['female','male']},
             color = 'sex',
             color_discrete_map={'male': 'blue', 'female': 'red'}
         )
-        
+        figure.update_layout(legend_traceorder="reversed")
+
     
     return figure
 
