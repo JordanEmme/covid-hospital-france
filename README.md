@@ -2,6 +2,8 @@
 
 This is a Dashboard for visualising the official official data on Covid-19 in France.
 
+The webapp is available [here](http://covid.jordanemme.com).
+
 Features:
 * Self updating on the latest official data
 * Choropleth map
