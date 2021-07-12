@@ -32,6 +32,8 @@ def format_date(date_str):
     else:
         return datetime.strptime(date_str, '%d/%m/%Y').date()
 
+    
+covid.drop(['HospConv', 'SSR_USLD', 'autres'], axis = 1, inplace = True)
 
 covid['jour'] = covid['jour'].apply(format_date) #Solving date formatting issues
 covid = covid[covid['dep'].apply(lambda x : len(x) == 2)] #Removing DOM-TOM (length of dep code is not 2)
@@ -255,4 +257,4 @@ def update_figure(radio_select, selectedData):
 
 #Run the app
 if __name__ == '__main__':
-    app.run_server(debug=True)
+    app.run_server()
